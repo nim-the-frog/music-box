@@ -47,37 +47,30 @@
     .key {
       width: 40px;
       height: 120px;
-      background: linear-gradient(180deg, #2a2a2a, #151515);
-      border: 2px solid #444;
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+      border: 2px solid #333;
       border-radius: 4px;
-      position: relative;
       cursor: pointer;
       transition: transform 0.05s, background 0.05s;
+      position: relative;
     }
-    .key.playing {
+    .key:active, .key.playing {
       transform: translateY(4px);
-      background: linear-gradient(180deg, #3a3a3a, #252525);
-      box-shadow: inset 0 0 20px rgba(255,200,100,0.3);
+      background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
     }
     .key::after {
       content: '';
       position: absolute;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 24px;
-      height: 4px;
-      background: #fff;
-      border-radius: 2px;
-    }
-    .note-label {
-      position: absolute;
-      bottom: -28px;
+      bottom: 12px;
       left: 50%;
       transform: translateX(-50%);
       font-size: 11px;
-      color: #888;
+      color: #666;
     }
+    .key:nth-child(1)::after { content: 'C'; }
+    .key:nth-child(2)::after { content: 'E'; }
+    .key:nth-child(3)::after { content: 'G'; }
+    .key:nth-child(4)::after { content: 'C\''; }
     .crank {
       position: absolute;
       right: -30px;
@@ -85,99 +78,107 @@
       transform: translateY(-50%);
       width: 24px;
       height: 24px;
-      border: 3px solid #555;
+      border: 3px solid #444;
       border-radius: 50%;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       background: #1a1a1a;
-      transition: transform 0.1s linear;
+      transition: transform 0.1s;
     }
     .crank::before {
       content: '';
       width: 8px;
-      height: 3px;
-      background: #555;
-      border-radius: 2px;
+      height: 8px;
+      border: 3px solid #444;
+      border-radius: 50%;
+      border-left-color: transparent;
+      border-bottom-color: transparent;
     }
-    .crank.spinning {
-      animation: spin 0.8s linear infinite;
+    .crank.spinning::before {
+      animation: spin 0.6s linear infinite;
     }
-    @keyframes spin { from { transform: translateY(-50%) rotate(0deg); } to { transform: translateY(-50%) rotate(360deg); } }
-    .status {
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .info {
       margin-top: 24px;
-      font-size: 13px;
-      color: #666;
       text-align: center;
-      min-height: 20px;
+      font-size: 13px;
+      color: #888;
     }
-    .loop-count {
-      margin-top: 8px;
-      font-size: 12px;
-      color: #555;
-    }
+    .loops { font-family: monospace; }
+    .status { margin-top: 8px; font-size: 12px; color: #666; }
+    .hint { margin-top: 16px; font-size: 11px; color: #444; }
   </style>
 </head>
 <body>
   <div class="box">
     <div class="lid"></div>
     <div class="keys">
-      <div class="key" data-note="C4" data-freq="261.63"><span class="note-label">C</span></div>
-      <div class="key" data-note="E4" data-freq="329.63"><span class="note-label">E</span></div>
-      <div class="key" data-note="G4" data-freq="392.00"><span class="note-label">G</span></div>
-      <div class="key" data-note="C5" data-freq="523.25"><span class="note-label">C</span></div>
+      <div class="key" data-freq="261.63"></div>
+      <div class="key" data-freq="329.63"></div>
+      <div class="key" data-freq="392.00"></div>
+      <div class="key" data-freq="523.25"></div>
     </div>
     <div class="crank" id="crank"></div>
   </div>
-  <div class="status" id="status">click the crank to wind</div>
-  <div class="loop-count" id="loops">loops: 0</div>
+  <div class="info">
+    <div class="loops" id="loops">loops: 0</div>
+    <div class="status" id="status">click crank to wind</div>
+    <div class="hint">click keys to play manually</div>
+  </div>
   <script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const keys = document.querySelectorAll('.key');
     const crank = document.getElementById('crank');
-    const status = document.getElementById('status');
     const loopsEl = document.getElementById('loops');
+    const status = document.getElementById('status');
     
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    let loopCount = 0;
     let isPlaying = false;
     let stopRequested = false;
+    let loopCount = 0;
     
-    function playNote(freq, duration = 600) {
+    const sequence = [
+      { index: 0, delay: 0 },
+      { index: 1, delay: 300 },
+      { index: 2, delay: 300 },
+      { index: 3, delay: 300 },
+    ];
+    
+    function playNote(freq, duration) {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'sine';
       osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.02);
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
       osc.connect(gain).connect(audioCtx.destination);
       osc.start();
-      osc.stop(audioCtx.currentTime + duration / 1000 + 0.1);
-      return new Promise(r => setTimeout(r, duration));
+      osc.stop(audioCtx.currentTime + duration / 1000);
     }
     
-    function highlightKey(index) {
-      keys[index].classList.add('playing');
-      setTimeout(() => keys[index].classList.remove('playing'), 550);
+    function highlightKey(i) {
+      keys[i].classList.add('playing');
+      setTimeout(() => keys[i].classList.remove('playing'), 250);
     }
     
-    async function playSequence() {
-      const sequence = [
-        { index: 0, freq: 261.63 },
-        { index: 1, freq: 329.63 },
-        { index: 2, freq: 392.00 },
-        { index: 3, freq: 523.25 }
-      ];
-      
-      for (const note of sequence) {
-        if (stopRequested) return false;
-        highlightKey(note.index);
-        await playNote(note.freq, 550);
-        if (stopRequested) return false;
-        await new Promise(r => setTimeout(r, 50));
-      }
-      return true;
+    function playSequence() {
+      return new Promise(resolve => {
+        let step = 0;
+        function next() {
+          if (stopRequested || step >= sequence.length) {
+            resolve(!stopRequested);
+            return;
+          }
+          const { index, delay } = sequence[step];
+          const freq = parseFloat(keys[index].dataset.freq);
+          highlightKey(index);
+          playNote(freq, 800);
+          step++;
+          setTimeout(next, delay);
+        }
+        next();
+      });
     }
     
     async function runLoops() {
