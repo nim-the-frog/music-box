@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>music box</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #0d0d0d;
+      color: #ccc;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .box {
+      width: 320px;
+      height: 200px;
+      background: #1a1a1a;
+      border: 2px solid #333;
+      border-radius: 8px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lid {
+      position: absolute;
+      top: -40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 340px;
+      height: 40px;
+      background: #1a1a1a;
+      border: 2px solid #333;
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+    }
+    .keys {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+    .key {
+      width: 40px;
+      height: 120px;
+      background: linear-gradient(180deg, #2a2a2a, #151515);
+      border: 2px solid #444;
+      border-radius: 4px;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.05s, background 0.05s;
+    }
+    .key.playing {
+      transform: translateY(4px);
+      background: linear-gradient(180deg, #3a3a3a, #252525);
+      box-shadow: inset 0 0 20px rgba(255,200,100,0.3);
+    }
+    .key::after {
+      content: '';
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 24px;
+      height: 4px;
+      background: #fff;
+      border-radius: 2px;
+    }
+    .note-label {
+      position: absolute;
+      bottom: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: #888;
+    }
+    .crank {
+      position: absolute;
+      right: -30px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 24px;
+      height: 24px;
+      border: 3px solid #555;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #1a1a1a;
+      transition: transform 0.1s linear;
+    }
+    .crank::before {
+      content: '';
+      width: 8px;
+      height: 3px;
+      background: #555;
+      border-radius: 2px;
+    }
+    .crank.spinning {
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { from { transform: translateY(-50%) rotate(0deg); } to { transform: translateY(-50%) rotate(360deg); } }
+    .status {
+      margin-top: 24px;
+      font-size: 13px;
+      color: #666;
+      text-align: center;
+      min-height: 20px;
+    }
+    .loop-count {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="lid"></div>
+    <div class="keys">
+      <div class="key" data-note="C4" data-freq="261.63"><span class="note-label">C</span></div>
+      <div class="key" data-note="E4" data-freq="329.63"><span class="note-label">E</span></div>
+      <div class="key" data-note="G4" data-freq="392.00"><span class="note-label">G</span></div>
+      <div class="key" data-note="C5" data-freq="523.25"><span class="note-label">C</span></div>
+    </div>
+    <div class="crank" id="crank"></div>
+  </div>
+  <div class="status" id="status">click the crank to wind</div>
+  <div class="loop-count" id="loops">loops: 0</div>
+  <script>
+    const keys = document.querySelectorAll('.key');
+    const crank = document.getElementById('crank');
+    const status = document.getElementById('status');
+    const loopsEl = document.getElementById('loops');
+    
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let loopCount = 0;
+    let isPlaying = false;
+    let stopRequested = false;
+    
+    function playNote(freq, duration = 600) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration / 1000 + 0.1);
+      return new Promise(r => setTimeout(r, duration));
+    }
+    
+    function highlightKey(index) {
+      keys[index].classList.add('playing');
+      setTimeout(() => keys[index].classList.remove('playing'), 550);
+    }
+    
+    async function playSequence() {
+      const sequence = [
+        { index: 0, freq: 261.63 },
+        { index: 1, freq: 329.63 },
+        { index: 2, freq: 392.00 },
+        { index: 3, freq: 523.25 }
+      ];
+      
+      for (const note of sequence) {
+        if (stopRequested) return false;
+        highlightKey(note.index);
+        await playNote(note.freq, 550);
+        if (stopRequested) return false;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return true;
+    }
+    
+    async function runLoops() {
+      crank.classList.add('spinning');
+      status.textContent = 'playing... click crank to stop';
+      
+      while (!stopRequested) {
+        const completed = await playSequence();
+        if (!completed) break;
+        loopCount++;
+        loopsEl.textContent = `loops: ${loopCount}`;
+        if (stopRequested) break;
+        await new Promise(r => setTimeout(r, 200));
+      }
+      
+      crank.classList.remove('spinning');
+      status.textContent = stopRequested ? 'stopped. click to wind again' : 'finished';
+      stopRequested = false;
+      isPlaying = false;
+    }
+    
+    crank.addEventListener('click', () => {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      if (isPlaying) {
+        stopRequested = true;
+      } else {
+        isPlaying = true;
+        stopRequested = false;
+        loopCount = 0;
+        loopsEl.textContent = 'loops: 0';
+        runLoops();
+      }
+    });
+    
+    keys.forEach((key, i) => {
+      key.addEventListener('click', () => {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const freq = parseFloat(key.dataset.freq);
+        highlightKey(i);
+        playNote(freq, 800);
+      });
+    });
+  </script>
+</body>
+</html>
