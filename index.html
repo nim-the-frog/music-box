@@ -24,6 +24,7 @@
       border-radius: 8px;
       position: relative;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
     }
@@ -39,10 +40,47 @@
       border-bottom: none;
       border-radius: 8px 8px 0 0;
     }
+    .crank {
+      width: 60px;
+      height: 60px;
+      border: 3px solid #444;
+      border-radius: 50%;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.1s;
+      margin-bottom: 20px;
+    }
+    .crank::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      border: 3px solid #444;
+      border-radius: 50%;
+    }
+    .crank::after {
+      content: '';
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 8px;
+      height: 25px;
+      background: #444;
+      border-radius: 4px;
+    }
+    .crank.spinning {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .keys {
       display: flex;
       gap: 8px;
       justify-content: center;
+      margin-top: auto;
     }
     .key {
       width: 40px;
@@ -51,241 +89,248 @@
       border: 2px solid #333;
       border-radius: 4px;
       cursor: pointer;
-      transition: transform 0.05s, background 0.05s, box-shadow 0.05s;
+      transition: transform 0.05s, background 0.1s;
       position: relative;
     }
-    .key:active, .key.playing {
-      transform: translateY(4px);
-      background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
-      box-shadow: inset 0 2px 8px rgba(0,0,0,0.5);
+    .key:active { transform: translateY(4px); }
+    .key.playing {
+      background: linear-gradient(180deg, #4a4a4a 0%, #3a3a3a 100%);
+      border-color: #666;
     }
     .key::after {
       content: attr(data-note);
       position: absolute;
-      bottom: 12px;
+      bottom: 8px;
       left: 50%;
       transform: translateX(-50%);
       font-size: 11px;
       color: #888;
     }
-    .crank {
-      position: absolute;
-      bottom: -30px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 60px;
-      height: 60px;
-      background: #1a1a1a;
-      border: 2px solid #333;
-      border-radius: 50%;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 0.1s;
-    }
-    .crank:active { transform: translateX(-50%) scale(0.95); }
-    .crank.spinning { animation: spin 1s linear infinite; }
-    @keyframes spin { from { transform: translateX(-50%) rotate(0deg); } to { transform: translateX(-50%) rotate(360deg); } }
-    .crank::before {
-      content: '';
-      width: 16px;
-      height: 16px;
-      border: 3px solid #555;
-      border-radius: 50%;
-      border-top-color: #aaa;
-    }
-    .status { margin-top: 24px; font-size: 13px; color: #888; min-height: 18px; }
-    .loops { margin-top: 8px; font-size: 12px; color: #666; }
-    .tension {
+    .status {
       margin-top: 16px;
-      width: 320px;
+      font-size: 13px;
+      color: #888;
+      text-align: center;
+      min-height: 20px;
+    }
+    .loops {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    .tension-container {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 12px;
       height: 60px;
-      background: #111;
+      align-items: flex-end;
+    }
+    .tension-bar {
+      width: 40px;
+      height: 100%;
+      background: #222;
       border: 1px solid #333;
-      border-radius: 4px;
+      border-radius: 2px;
       position: relative;
       overflow: hidden;
     }
-    .tension-bar {
+    .tension-fill {
       position: absolute;
       bottom: 0;
-      width: 20px;
-      transition: height 0.3s ease, background 0.3s ease;
-      border-radius: 2px 2px 0 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(0deg, #e84 0%, #fa0 50%, #4f4 100%);
+      transition: height 0.1s;
     }
     .tension-label {
       position: absolute;
-      bottom: 100%;
+      bottom: -18px;
       left: 50%;
       transform: translateX(-50%);
-      font-size: 9px;
+      font-size: 10px;
       color: #666;
       white-space: nowrap;
+    }
+    .drift-info {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: #555;
+    }
+    .drift-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .drift-value {
+      font-family: monospace;
+      color: #888;
     }
   </style>
 </head>
 <body>
   <div class="box">
     <div class="lid"></div>
-    <div class="keys">
-      <div class="key" data-note="C" data-freq="261.63"></div>
-      <div class="key" data-note="E" data-freq="329.63"></div>
-      <div class="key" data-note="G" data-freq="392.00"></div>
-      <div class="key" data-note="C'" data-freq="523.25"></div>
-    </div>
     <div class="crank" id="crank"></div>
+    <div class="keys">
+      <div class="key" data-note="C3" data-freq="130.81"></div>
+      <div class="key" data-note="E3" data-freq="164.81"></div>
+      <div class="key" data-note="G3" data-freq="196.00"></div>
+      <div class="key" data-note="C4" data-freq="261.63"></div>
+    </div>
   </div>
-  <div class="status" id="status">click crank to wind</div>
+  <div class="status" id="status">click the crank to wind</div>
   <div class="loops" id="loops">loops: 0</div>
-  <div class="tension" id="tension">
-    <div class="tension-bar" id="t0" style="left: 10px;" data-note="C"><div class="tension-label">C</div></div>
-    <div class="tension-bar" id="t1" style="left: 90px;" data-note="E"><div class="tension-label">E</div></div>
-    <div class="tension-bar" id="t2" style="left: 170px;" data-note="G"><div class="tension-label">G</div></div>
-    <div class="tension-bar" id="t3" style="left: 250px;" data-note="C'"><div class="tension-label">C'</div></div>
-  </div>
+  <div class="tension-container" id="tension"></div>
+  <div class="drift-info" id="drift"></div>
 
   <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const keys = document.querySelectorAll('.key');
     const crank = document.getElementById('crank');
+    const keys = document.querySelectorAll('.key');
     const status = document.getElementById('status');
     const loopsEl = document.getElementById('loops');
-    const tensionBars = document.querySelectorAll('.tension-bar');
-    
+    const tensionContainer = document.getElementById('tension');
+    const driftEl = document.getElementById('drift');
+
     let isPlaying = false;
     let stopRequested = false;
     let loopCount = 0;
-    
-    // each note gets its own drifting personality
+
     const noteState = [
-      { detune: 0, velocity: 1, timing: 0, driftDir: 1, tension: 0 },
-      { detune: 0, velocity: 1, timing: 0, driftDir: -1, tension: 0 },
-      { detune: 0, velocity: 1, timing: 0, driftDir: 1, tension: 0 },
-      { detune: 0, velocity: 1, timing: 0, driftDir: -1, tension: 0 }
+      { detune: 0, velocity: 1, timing: 0, driftDir: 1, tension: 0, name: 'C3' },
+      { detune: 0, velocity: 1, timing: 0, driftDir: -1, tension: 0, name: 'E3' },
+      { detune: 0, velocity: 1, timing: 0, driftDir: 1, tension: 0, name: 'G3' },
+      { detune: 0, velocity: 1, timing: 0, driftDir: -1, tension: 0, name: 'C4' }
     ];
-    
+
+    function buildTensionBars() {
+      tensionContainer.innerHTML = '';
+      noteState.forEach((s, i) => {
+        const bar = document.createElement('div');
+        bar.className = 'tension-bar';
+        bar.innerHTML = `
+          <div class="tension-fill" id="tension-fill-${i}" style="height: 0%"></div>
+          <div class="tension-label">${s.name}</div>
+        `;
+        tensionContainer.appendChild(bar);
+      });
+    }
+
+    function updateTensionBars() {
+      noteState.forEach((s, i) => {
+        const fill = document.getElementById(`tension-fill-${i}`);
+        if (fill) fill.style.height = `${Math.min(s.tension * 100, 100)}%`;
+      });
+    }
+
+    function updateDriftInfo() {
+      driftEl.innerHTML = noteState.map((s, i) => `
+        <div class="drift-item">
+          <span>${s.name}</span>
+          <span class="drift-value">detune: ${s.detune.toFixed(1)}¢</span>
+          <span class="drift-value">vel: ${s.velocity.toFixed(2)}</span>
+          <span class="drift-value">time: ${(s.timing * 1000).toFixed(1)}ms</span>
+          <span class="drift-value">tension: ${(s.tension * 100).toFixed(0)}%</span>
+        </div>
+      `).join('');
+    }
+
     function playNote(freq, duration, state, index) {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      
-      // apply accumulated detune (in cents)
-      const actualFreq = freq * Math.pow(2, state.detune / 1200);
-      osc.frequency.value = actualFreq;
-      osc.type = 'triangle';
-      
-      gain.gain.value = 0;
-      gain.gain.setValueAtTime(0, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.15 * state.velocity, audioCtx.currentTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
-      
-      osc.connect(gain).connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + duration / 1000 + 0.1);
-      
-      return new Promise(r => setTimeout(r, duration));
+      osc.type = 'sine';
+      osc.frequency.value = freq * Math.pow(2, state.detune / 1200);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      const now = audioCtx.currentTime;
+      const attack = 0.01;
+      const decay = duration / 1000 * 0.8;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(state.velocity * 0.3, now + attack);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + attack + decay);
+
+      osc.start(now);
+      osc.stop(now + attack + decay + 0.1);
+
+      keys[index].classList.add('playing');
+      setTimeout(() => keys[index].classList.remove('playing'), duration);
     }
-    
-    function highlightKey(i) {
-      keys[i].classList.add('playing');
-      setTimeout(() => keys[i].classList.remove('playing'), 150);
+
+    function highlightKey(index) {
+      keys[index].classList.add('playing');
+      setTimeout(() => keys[index].classList.remove('playing'), 200);
     }
-    
-    function updateTensionBars() {
-      noteState.forEach((s, i) => {
-        const h = Math.min(50, Math.abs(s.tension) * 2);
-        tensionBars[i].style.height = h + 'px';
-        tensionBars[i].style.background = s.tension > 0 ? '#e74c3c' : '#3498db';
-      });
-    }
-    
-    async function playSequence() {
-      const baseFreqs = [261.63, 329.63, 392.00, 523.25];
-      const baseDuration = 400;
-      
-      for (let i = 0; i < 4; i++) {
-        if (stopRequested) return false;
-        
-        const state = noteState[i];
-        
-        // timing drift - some rush, some drag
-        const timingOffset = state.timing * 50; // ms
-        if (timingOffset > 0) await new Promise(r => setTimeout(r, timingOffset));
-        
-        highlightKey(i);
-        await playNote(baseFreqs[i], baseDuration + state.timing * 20, state, i);
-        
-        if (stopRequested) return false;
-        
-        // small gap between notes, but affected by timing drift
-        await new Promise(r => setTimeout(r, 80 - timingOffset));
-      }
-      return true;
-    }
-    
+
     function evolveNotes() {
       noteState.forEach((s, i) => {
-        // detune drifts - they fight to stay in tune or pull away
-        s.detune += s.driftDir * (0.5 + Math.random() * 1.5); // cents per loop
-        
-        // if detune gets too extreme, they fight back
-        if (Math.abs(s.detune) > 50) {
-          s.driftDir *= -1;
-          s.tension += s.driftDir * 5;
-        }
-        
-        // velocity fights - some get louder, some quieter
-        s.velocity += s.driftDir * 0.02;
-        s.velocity = Math.max(0.3, Math.min(1.5, s.velocity));
-        
-        // timing fights - rush vs drag
-        s.timing += s.driftDir * 0.015;
-        s.timing = Math.max(-0.8, Math.min(0.8, s.timing));
-        
-        // tension accumulates when they're fighting
-        s.tension *= 0.95; // slow decay
-        s.tension += (Math.random() - 0.5) * 2;
+        const otherNotes = noteState.filter((_, j) => j !== i);
+        let push = 0;
+        otherNotes.forEach(o => {
+          const diff = s.detune - o.detune;
+          push += diff * 0.02;
+        });
+
+        s.detune += (Math.random() - 0.5) * 8 + s.driftDir * 1.5 - push;
+        s.detune = Math.max(-200, Math.min(200, s.detune));
+
+        s.velocity *= 0.995;
+        s.velocity += (Math.random() - 0.5) * 0.02;
+        s.velocity = Math.max(0.1, Math.min(2, s.velocity));
+
+        s.timing += (Math.random() - 0.5) * 0.008;
+        s.timing = Math.max(-0.15, Math.min(0.15, s.timing));
+
+        const avgDetune = noteState.reduce((a, n) => a + Math.abs(n.detune), 0) / noteState.length;
+        s.tension = Math.min(1, avgDetune / 100);
+
+        if (Math.random() < 0.02) s.driftDir *= -1;
       });
-      
-      // cross-influence: notes affect each other
-      for (let i = 0; i < 4; i++) {
-        for (let j = 0; j < 4; j++) {
-          if (i !== j) {
-            // pull toward each other slightly (harmonic gravity)
-            noteState[i].detune += (noteState[j].detune - noteState[i].detune) * 0.001;
-          }
-        }
-      }
-      
-      updateTensionBars();
     }
-    
+
     async function runLoops() {
       crank.classList.add('spinning');
-      status.textContent = 'playing... click crank to stop';
-      
+      status.textContent = 'winding...';
+
       while (!stopRequested) {
-        const completed = await playSequence();
-        if (!completed) break;
-        
         loopCount++;
         loopsEl.textContent = `loops: ${loopCount}`;
-        
+        status.textContent = `loop ${loopCount} — let them fight`;
+
+        for (let i = 0; i < 4; i++) {
+          if (stopRequested) break;
+          const freq = parseFloat(keys[i].dataset.freq);
+          const state = noteState[i];
+          const delay = (i * 500) + state.timing * 1000;
+          await new Promise(r => setTimeout(r, delay));
+          if (stopRequested) break;
+          highlightKey(i);
+          playNote(freq, 800, state, i);
+        }
+
         evolveNotes();
-        
+        updateTensionBars();
+        updateDriftInfo();
+
         if (stopRequested) break;
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 400));
       }
-      
+
       crank.classList.remove('spinning');
       status.textContent = stopRequested ? 'stopped. click to wind again' : 'finished';
       stopRequested = false;
       isPlaying = false;
     }
-    
+
+    buildTensionBars();
+    updateDriftInfo();
+
     crank.addEventListener('click', () => {
       if (audioCtx.state === 'suspended') audioCtx.resume();
-      
+
       if (isPlaying) {
         stopRequested = true;
       } else {
@@ -293,7 +338,6 @@
         stopRequested = false;
         loopCount = 0;
         loopsEl.textContent = 'loops: 0';
-        // reset note states
         noteState.forEach((s, i) => {
           s.detune = 0;
           s.velocity = 1;
@@ -302,10 +346,11 @@
           s.tension = 0;
         });
         updateTensionBars();
+        updateDriftInfo();
         runLoops();
       }
     });
-    
+
     keys.forEach((key, i) => {
       key.addEventListener('click', () => {
         if (audioCtx.state === 'suspended') audioCtx.resume();
