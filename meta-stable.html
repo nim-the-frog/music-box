@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>meta-stable tune</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #0a0a0a;
+      color: #ccc;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .box {
+      width: 400px;
+      height: 280px;
+      background: #121212;
+      border: 2px solid #2a2a2a;
+      border-radius: 8px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .lid {
+      position: absolute;
+      top: -50px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 420px;
+      height: 50px;
+      background: #121212;
+      border: 2px solid #2a2a2a;
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+    }
+    .crank {
+      width: 70px;
+      height: 70px;
+      border: 3px solid #333;
+      border-radius: 50%;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.1s;
+      margin-bottom: 15px;
+    }
+    .crank::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      width: 20px;
+      height: 20px;
+      border: 3px solid #333;
+      border-right: none;
+      border-bottom: none;
+    }
+    .crank.spinning {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .voice-bars {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 15px;
+      height: 80px;
+      align-items: flex-end;
+    }
+    .voice {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .voice-bar {
+      width: 100%;
+      background: #222;
+      border: 1px solid #333;
+      border-radius: 4px;
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+    .voice-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, #4a9, #8cf);
+      transition: height 0.1s;
+    }
+    .voice-label {
+      font-size: 10px;
+      color: #888;
+    }
+    .voice-freq {
+      font-size: 11px;
+      color: #aaa;
+    }
+    .tension-bar {
+      width: 100%;
+      height: 8px;
+      background: #222;
+      border: 1px solid #333;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .tension-fill {
+      height: 100%;
+      background: linear-gradient(to right, #244, #488, #8cc);
+      transition: width 0.1s;
+    }
+    .status {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 5px;
+    }
+    .cycles-info {
+      font-size: 10px;
+      color: #666;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="lid"></div>
+    <div class="crank" id="crank"></div>
+    <div class="voice-bars" id="voiceBars"></div>
+    <div class="tension-bar"><div class="tension-fill" id="tensionFill" style="width: 0%"></div></div>
+    <div class="status" id="status">click to wind</div>
+    <div class="cycles-info" id="cyclesInfo"></div>
+  </div>
+
+  <script>
+const NOTES = 8;
+const CYCLES = [
+  2178, 619, 675, 258, 937, 846, 1205, 1299, 926, 1542,
+  340, 444, 1135, 634, 1312, 789, 706, 370, 481, 878, 1084
+];
+const VOICE_CYCLES = [[], [], [], []];
+CYCLES.forEach((c, i) => VOICE_CYCLES[i % 4].push(c));
+const VOICE_BASE = [55, 110, 220, 440];
+const MAX_CYCLE = Math.max(...CYCLES);
+const MIN_CYCLE = Math.min(...CYCLES);
+
+let noteState = [];
+for (let i = 0; i < NOTES; i++) {
+  noteState.push({
+    detune: 0,
+    velocity: 1,
+    timing: 0,
+    driftDir: i % 2 === 0 ? 1 : -1,
+    tension: 0
+  });
+}
+
+let cycleIndex = 0;
+let voiceCycleIndex = [0, 0, 0, 0];
+let currentVoiceCycles = VOICE_CYCLES.map(v => v[0] || 1000);
+let stepsInCurrentCycle = 0;
+
+const tensionHistory = [];
+const HISTORY_LEN = 50;
+
+let audioCtx = null;
+let oscillators = [null, null, null, null];
+let gainNodes = [null, null, null, null];
+let isPlaying = false;
+let stopRequested = false;
+
+const crank = document.getElementById('crank');
+const status = document.getElementById('status');
+const tensionFill = document.getElementById('tensionFill');
+const cyclesInfo = document.getElementById('cyclesInfo');
+const voiceBars = document.getElementById('voiceBars');
+
+function buildVoiceBars() {
+  voiceBars.innerHTML = '';
+  for (let v = 0; v < 4; v++) {
+    const div = document.createElement('div');
+    div.className = 'voice';
+    div.innerHTML = `
+      <div class="voice-bar"><div class="voice-fill" id="voiceFill${v}" style="height: 0%"></div></div>
+      <div class="voice-label" id="voiceLabel${v}">Voice ${v+1}</div>
+      <div class="voice-freq" id="voiceFreq${v}">-- Hz</div>
+    `;
+    voiceBars.appendChild(div);
+  }
+}
+
+function evolveNotes(basePush = 0.02, driftStrength = 1.5, randomStrength = 8) {
+  const avgTension = noteState.reduce((a, s) => a + s.tension, 0) / NOTES;
+  tensionHistory.push(avgTension);
+  if (tensionHistory.length > HISTORY_LEN) tensionHistory.shift();
+  
+  const delayedTension = tensionHistory[0] || avgTension;
+  const pushMult = 1 + Math.sqrt(delayedTension) * 5;
+  
+  noteState.forEach((s, i) => {
+    const otherNotes = noteState.filter((_, j) => j !== i);
+    let push = 0;
+    otherNotes.forEach(o => {
+      const diff = s.detune - o.detune;
+      push += diff * basePush * pushMult;
+    });
+
+    s.detune += (Math.random() - 0.5) * randomStrength + s.driftDir * driftStrength - push;
+    s.detune = Math.max(-200, Math.min(200, s.detune));
+
+    const avgDetune = noteState.reduce((a, n) => a + Math.abs(n.detune), 0) / NOTES;
+    s.tension = Math.min(5, avgDetune / 20);
+
+    s.velocity *= 0.9985;
+    if (s.velocity < 0.2) s.velocity *= 1.05;
+    s.velocity = Math.max(0.15, Math.min(2, s.velocity));
+
+    s.timing += (Math.random() - 0.5) * 0.008;
+    s.timing = Math.max(-0.15, Math.min(0.15, s.timing));
+
+    if (Math.random() < 0.02) s.driftDir *= -1;
+  });
+
+  stepsInCurrentCycle++;
+  const minVoiceCycle = Math.min(...currentVoiceCycles);
+  if (stepsInCurrentCycle >= minVoiceCycle) {
+    stepsInCurrentCycle = 0;
+    cycleIndex = (cycleIndex + 1) % CYCLES.length;
+    voiceCycleIndex = voiceCycleIndex.map((vi, v) => (vi + 1) % VOICE_CYCLES[v].length);
+    currentVoiceCycles = voiceCycleIndex.map((vi, v) => VOICE_CYCLES[v][vi] || 1000);
+  }
+}
+
+function getVoiceData() {
+  const avgTension = noteState.reduce((a, s) => a + s.tension, 0) / NOTES;
+  const tensionRatio = avgTension / 5;
+  
+  return [0,1,2,3].map(v => {
+    const cycleLen = currentVoiceCycles[v];
+    const cycleRatio = cycleLen / MAX_CYCLE;
+    const ratio = cycleLen / MIN_CYCLE;
+    const semitones = 12 * Math.log2(ratio);
+    const drift = (noteState[v % 8].detune / 200) * 2;
+    const freq = VOICE_BASE[v] * Math.pow(2, (semitones + drift) / 12);
+    return {
+      freq,
+      cycleRatio,
+      tensionRatio,
+      velocity: noteState[v % 8].velocity,
+      cycleLen
+    };
+  });
+}
+
+function updateVoiceBars(voices) {
+  voices.forEach((v, i) => {
+    const fill = document.getElementById(`voiceFill${i}`);
+    const freqEl = document.getElementById(`voiceFreq${i}`);
+    const height = Math.max(5, Math.min(100, v.cycleRatio * 100));
+    fill.style.height = height + '%';
+    freqEl.textContent = v.freq.toFixed(1) + ' Hz';
+  });
+}
+
+function updateTensionBar(voices) {
+  const avgTension = voices.reduce((a, v) => a + v.tensionRatio, 0) / 4;
+  tensionFill.style.width = (avgTension * 100) + '%';
+}
+
+function updateCyclesInfo() {
+  cyclesInfo.textContent = `cycles: [${currentVoiceCycles.join(', ')}] | index: ${cycleIndex}`;
+}
+
+function startOscillators(voices) {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  
+  voices.forEach((v, i) => {
+    if (oscillators[i]) {
+      oscillators[i].frequency.setTargetAtTime(v.freq, audioCtx.currentTime, 0.1);
+      gainNodes[i].gain.setTargetAtTime(v.velocity * 0.15, audioCtx.currentTime, 0.1);
+    } else {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = v.freq;
+      gain.gain.value = v.velocity * 0.15;
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      oscillators[i] = osc;
+      gainNodes[i] = gain;
+    }
+  });
+}
+
+function stopOscillators() {
+  oscillators.forEach((osc, i) => {
+    if (osc) {
+      osc.stop();
+      oscillators[i] = null;
+      gainNodes[i] = null;
+    }
+  });
+}
+
+async function runLoop() {
+  while (isPlaying && !stopRequested) {
+    evolveNotes();
+    const voices = getVoiceData();
+    
+    updateVoiceBars(voices);
+    updateTensionBar(voices);
+    updateCyclesInfo();
+    
+    if (audioCtx) {
+      startOscillators(voices);
+    }
+    
+    await new Promise(r => setTimeout(r, 50));
+  }
+  
+  stopOscillators();
+  crank.classList.remove('spinning');
+  status.textContent = stopRequested ? 'stopped. click to wind again' : 'finished';
+  isPlaying = false;
+  stopRequested = false;
+}
+
+buildVoiceBars();
+updateCyclesInfo();
+
+crank.addEventListener('click', () => {
+  if (isPlaying) {
+    stopRequested = true;
+  } else {
+    isPlaying = true;
+    stopRequested = false;
+    noteState.forEach((s, i) => {
+      s.detune = 0;
+      s.velocity = 1;
+      s.timing = 0;
+      s.driftDir = i % 2 === 0 ? 1 : -1;
+      s.tension = 0;
+    });
+    cycleIndex = 0;
+    voiceCycleIndex = [0, 0, 0, 0];
+    currentVoiceCycles = VOICE_CYCLES.map(v => v[0] || 1000);
+    stepsInCurrentCycle = 0;
+    tensionHistory.length = 0;
+    updateVoiceBars(getVoiceData());
+    updateTensionBar(getVoiceData());
+    updateCyclesInfo();
+    crank.classList.add('spinning');
+    status.textContent = 'playing... click to stop';
+    runLoop();
+  }
+});
+  </script>
+</body>
+</html>
