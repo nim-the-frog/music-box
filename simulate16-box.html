@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>simulate16 - clock tower</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #0a0a0a;
+      color: #ccc;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .box {
+      width: 480px;
+      height: 320px;
+      background: #121212;
+      border: 2px solid #2a2a2a;
+      border-radius: 8px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .lid {
+      position: absolute;
+      top: -50px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 500px;
+      height: 50px;
+      background: #121212;
+      border: 2px solid #2a2a2a;
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+    }
+    .crank {
+      width: 70px;
+      height: 70px;
+      border: 3px solid #333;
+      border-radius: 50%;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.1s;
+      margin-bottom: 15px;
+    }
+    .crank::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 24px;
+      height: 24px;
+      border: 3px solid #333;
+      border-radius: 50%;
+    }
+    .crank::after {
+      content: '';
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 12px;
+      height: 28px;
+      background: #444;
+      border-radius: 6px;
+    }
+    .crank.spinning {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .status {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 10px;
+      text-align: center;
+      min-height: 18px;
+    }
+    .voice-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      max-width: 420px;
+      padding: 0 20px;
+    }
+    .voice-bar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 8px;
+    }
+    .voice-bar .label {
+      font-size: 10px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .voice-bar .fill {
+      width: 80%;
+      background: linear-gradient(to top, #4a9, #8cf);
+      border-radius: 2px;
+      transition: height 0.1s, background 0.1s;
+      position: relative;
+    }
+    .voice-bar .cycle-num {
+      position: absolute;
+      bottom: 4px;
+      font-size: 9px;
+      color: #666;
+    }
+    .tension-bar {
+      width: 80%;
+      height: 12px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      margin-top: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+    .tension-bar .fill {
+      height: 100%;
+      background: linear-gradient(to right, #244, #488, #8cc);
+      border-radius: 5px;
+      transition: width 0.1s;
+    }
+    .tension-bar .markers {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+    }
+    .tension-bar .marker {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(255,255,255,0.15);
+    }
+    .clock-info {
+      font-size: 11px;
+      color: #888;
+      margin-top: 8px;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .pattern-display {
+      font-size: 10px;
+      color: #666;
+      margin-top: 8px;
+      font-family: monospace;
+      max-width: 420px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="lid"></div>
+    <div class="crank" id="crank"></div>
+    <div class="status" id="status">click to wind</div>
+    
+    <div class="voice-bars" id="voiceBars"></div>
+    
+    <div class="tension-bar">
+      <div class="fill" id="tensionFill" style="width: 0%"></div>
+      <div class="markers" id="tensionMarkers"></div>
+    </div>
+    
+    <div class="clock-info" id="clockInfo">
+      Hour 0, Quarter 1/4<br>
+      Main: —  Wrong: —
+    </div>
+    
+    <div class="pattern-display" id="patternDisplay"></div>
+  </div>
+
+  <script src="simulate16-clocktower.js"></script>
+  <script>
+    let audioCtx = null;
+    let oscillators = [];
+    let gainNodes = [];
+    let isPlaying = false;
+    let stopRequested = false;
+    
+    const crank = document.getElementById('crank');
+    const status = document.getElementById('status');
+    const voiceBarsContainer = document.getElementById('voiceBars');
+    const tensionFill = document.getElementById('tensionFill');
+    const tensionMarkers = document.getElementById('tensionMarkers');
+    const clockInfo = document.getElementById('clockInfo');
+    const patternDisplay = document.getElementById('patternDisplay');
+    
+    // Quarter lengths: 4, 8, 12, 16
+    const quarterLengths = [4, 8, 12, 16];
+    const quarterNames = ['Quarter', 'Half', 'Three-quarter', 'Hour'];
+    
+    function buildVoiceBars() {
+      voiceBarsContainer.innerHTML = '';
+      for (let i = 0; i < 2; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'voice-bar';
+        bar.innerHTML = `
+          <div class="label">${i === 0 ? 'Clock Voice' : 'Wrong Voice'}</div>
+          <div class="fill" id="voiceFill${i}" style="height: 0%"></div>
+        `;
+        voiceBarsContainer.appendChild(bar);
+      }
+    }
+    
+    function updateVoiceBars(voices) {
+      voices.forEach((v, i) => {
+        const fill = document.getElementById(`voiceFill${i}`);
+        if (fill) {
+          const h = v.active ? Math.max(5, v.velocity * 100) : 0;
+          fill.style.height = h + '%';
+          fill.style.background = v.active 
+            ? (i === 0 ? 'linear-gradient(to top, #4a9, #8cf)' : 'linear-gradient(to top, #a44, #f88)')
+            : 'transparent';
+        }
+      });
+    }
+    
+    function updateTensionBar(voices) {
+      const activeVoices = voices.filter(v => v.active);
+      if (activeVoices.length === 0) {
+        tensionFill.style.width = '0%';
+        return;
+      }
+      const avgTension = activeVoices.reduce((sum, v) => sum + (v.tension || 0), 0) / activeVoices.length;
+      tensionFill.style.width = (avgTension * 100) + '%';
+    }
+    
+    function updateClockInfo(voices) {
+      const main = voices[0];
+      const wrong = voices[1];
+      const qName = quarterNames[main.quarter];
+      const qLen = quarterLengths[main.quarter];
+      
+      let noteName = '—';
+      if (main.active) {
+        const names = ['B3','C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4'];
+        noteName = names[main.noteIndex] || '?';
+      }
+      
+      let wrongName = '—';
+      if (wrong.active) {
+        const names = ['B3','C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4'];
+        wrongName = names[wrong.noteIndex] || '?';
+      }
+      
+      clockInfo.innerHTML = `Hour ${main.hourCount}, ${qName} ${main.noteInQuarter + 1}/${qLen}<br>
+        Main: ${noteName}  Wrong: ${wrongName}`;
+    }
+    
+    function updatePatternDisplay() {
+      // Show current position in the pattern
+      let mainIdx = patternIndex % CLOCK_PATTERN.length;
+      let wrongIdx = wrongVoiceIndex % WRONG_VOICE_PATTERN.length;
+      
+      const names = ['B3','C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4'];
+      
+      let mainStr = 'Main: ';
+      for (let i = 0; i < 8; i++) {
+        const idx = (mainIdx + i) % CLOCK_PATTERN.length;
+        const n = CLOCK_PATTERN[idx];
+        mainStr += (i === 0 ? '►' : ' ') + names[n] + ' ';
+      }
+      
+      let wrongStr = 'Wrong: ';
+      if (wrongVoiceActive) {
+        for (let i = 0; i < 8; i++) {
+          const idx = (wrongIdx + i) % WRONG_VOICE_PATTERN.length;
+          const n = WRONG_VOICE_PATTERN[idx];
+          wrongStr += (i === 0 ? '►' : ' ') + names[n] + ' ';
+        }
+      } else {
+        wrongStr += '(waiting for quarter 2...)';
+      }
+      
+      patternDisplay.textContent = mainStr + '\n' + wrongStr;
+    }
+    
+    async function startOscillators(voices) {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      
+      oscillators.forEach(o => { try { o.stop(); } catch(e) {} });
+      oscillators = [];
+      gainNodes = [];
+      
+      voices.forEach((v, i) => {
+        if (!v.active) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = v.freq;
+        gain.gain.value = 0.06 * v.velocity * (1 - v.tension * 0.4);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        oscillators.push(osc);
+        gainNodes.push(gain);
+      });
+    }
+    
+    function stopOscillators() {
+      oscillators.forEach(o => { try { o.stop(); } catch(e) {} });
+      oscillators = [];
+      gainNodes = [];
+    }
+    
+    async function runLoop() {
+      while (isPlaying && !stopRequested) {
+        evolveNotes();
+        const voices = getVoiceData();
+        
+        updateVoiceBars(voices);
+        updateTensionBar(voices);
+        updateClockInfo(voices);
+        updatePatternDisplay();
+        
+        if (audioCtx) {
+          startOscillators(voices);
+        }
+        
+        await new Promise(r => setTimeout(r, 600)); // slower for clock feel
+      }
+      
+      stopOscillators();
+      crank.classList.remove('spinning');
+      status.textContent = stopRequested ? 'stopped. click to wind again' : 'finished';
+      isPlaying = false;
+      stopRequested = false;
+    }
+    
+    buildVoiceBars();
+    reset();
+    updateVoiceBars(getVoiceData());
+    updateTensionBar(getVoiceData());
+    updateClockInfo(getVoiceData());
+    updatePatternDisplay();
+    
+    crank.addEventListener('click', () => {
+      if (isPlaying) {
+        stopRequested = true;
+      } else {
+        isPlaying = true;
+        stopRequested = false;
+        noteState.forEach((s, i) => {
+          s.detune = 0;
+          s.velocity = 1;
+          s.timing = 0;
+          s.driftDir = i % 2 === 0 ? 1 : -1;
+          s.tension = 0;
+        });
+        tensionHistory.length = 0;
+        patternIndex = 0;
+        quarter = 0;
+        noteInQuarter = 0;
+        wrongVoiceActive = false;
+        wrongVoiceIndex = 0;
+        hourCount = 0;
+        
+        updateVoiceBars(getVoiceData());
+        updateTensionBar(getVoiceData());
+        updateClockInfo(getVoiceData());
+        updatePatternDisplay();
+        crank.classList.add('spinning');
+        status.textContent = 'playing... click to stop';
+        runLoop();
+      }
+    });
+  </script>
+</body>
+</html>
