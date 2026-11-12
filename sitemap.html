@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>sitemap — music box</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #0d0d12;
+      color: #e0e0e0;
+      font-family: monospace;
+      padding: 40px 24px;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 16px; font-weight: 400; color: #888; margin-bottom: 32px; letter-spacing: 0.1em; }
+    .section { margin-bottom: 40px; }
+    .section-title { font-size: 13px; color: #666; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .list { list-style: none; }
+    .list li { margin-bottom: 10px; }
+    .list a {
+      color: #ccc;
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.1s;
+    }
+    .list a:hover { color: #fff; }
+    .list a::before { content: "> "; color: #555; margin-right: 4px; }
+    .list .desc { color: #666; font-size: 12px; margin-left: 20px; margin-top: 2px; display: block; }
+    .back { margin-top: 48px; display: inline-block; }
+    .back a { color: #888; text-decoration: none; font-size: 13px; }
+    .back a:hover { color: #ccc; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>music box — sitemap</h1>
+    
+    <div class="section">
+      <div class="section-title">main pages</div>
+      <ul class="list">
+        <li><a href="index.html">index</a><span class="desc">entry point — music box with crank</span></li>
+        <li><a href="simulate14-box.html">simulate14 — voice swapping</a><span class="desc">odd indices keep swapping; tension drives velocity</span></li>
+        <li><a href="simulate16-box.html">simulate16 — clock tower on the plaza</a><span class="desc">main tune, plus a second voice that plays it wrong on purpose</span></li>
+        <li><a href="meta-stable.html">meta-stable tune</a><span class="desc">four voices, drift, tension, cycles</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">simulation history (simulate1–13)</div>
+      <ul class="list">
+        <li><a href="simulate1-box.html">simulate1</a><span class="desc">first box — single voice, basic crank</span></li>
+        <li><a href="simulate2-box.html">simulate2</a><span class="desc">two voices, simple detune</span></li>
+        <li><a href="simulate3-box.html">simulate3</a><span class="desc">three voices, phase offsets</span></li>
+        <li><a href="simulate4-box.html">simulate4</a><span class="desc">four voices, tension introduced</span></li>
+        <li><a href="simulate5-box.html">simulate5</a><span class="desc">velocity accumulation, drift direction</span></li>
+        <li><a href="simulate6-box.html">simulate6</a><span class="desc">cycle detection, voice bars</span></li>
+        <li><a href="simulate7-box.html">simulate7</a><span class="desc">tension history, visual feedback</span></li>
+        <li><a href="simulate8-box.html">simulate8</a><span class="desc">softer delay curve, wider tension range</span></li>
+        <li><a href="simulate9-box.html">simulate9</a><span class="desc">emergency recovery, velocity floor</span></li>
+        <li><a href="simulate10-box.html">simulate10</a><span class="desc">refined tension curve, cycle tracking</span></li>
+        <li><a href="simulate11-box.html">simulate11</a><span class="desc">voice-specific cycles, drift per voice</span></li>
+        <li><a href="simulate12-box.html">simulate12</a><span class="desc">tension bars, cycle info display</span></li>
+        <li><a href="simulate13-box.html">simulate13</a><span class="desc">meta-stable behavior, 20k cycle runs</span></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">raw scripts</div>
+      <ul class="list">
+        <li><a href="simulate.js">simulate.js</a></li>
+        <li><a href="simulate2.js">simulate2.js</a></li>
+        <li><a href="simulate3.js">simulate3.js</a></li>
+        <li><a href="simulate4.js">simulate4.js</a></li>
+        <li><a href="simulate5.js">simulate5.js</a></li>
+        <li><a href="simulate6.js">simulate6.js</a></li>
+        <li><a href="simulate7.js">simulate7.js</a></li>
+        <li><a href="simulate8.js">simulate8.js</a></li>
+        <li><a href="simulate9.js">simulate9.js</a></li>
+        <li><a href="simulate10.js">simulate10.js</a></li>
+        <li><a href="simulate11.js">simulate11.js</a></li>
+        <li><a href="simulate12.js">simulate12.js</a></li>
+        <li><a href="simulate13.js">simulate13.js</a></li>
+        <li><a href="simulate14.js">simulate14.js</a></li>
+        <li><a href="meta-stable.js">meta-stable.js</a></li>
+      </ul>
+    </div>
+
+    <div class="back">
+      <a href="index.html">← back to music box</a>
+    </div>
+  </div>
+</body>
+</html>
